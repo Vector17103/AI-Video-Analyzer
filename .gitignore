@@ -1,0 +1,18 @@
+# Python virtual environments
+venv/
+.env/
+.env*/
+yolo-testing/venv/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# OS junk
+.DS_Store
+Thumbs.db
+
+# Large ML artifacts (optional but recommended)
+*.pt
+*.pth
+*.onnx
