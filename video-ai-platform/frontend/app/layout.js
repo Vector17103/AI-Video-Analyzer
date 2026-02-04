@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import "../lib/aws"; // Import AWS configuration
+import { AmplifyProvider } from "../lib/AmplifyProvider";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,17 +13,17 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "AWS Cognito Authentication",
-  description: "Next.js app with AWS Cognito authentication",
+  title: "Video AI Detection Platform",
+  description: "AI-powered video object detection",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        {children}
+      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+        <AmplifyProvider>
+          {children}
+        </AmplifyProvider>
       </body>
     </html>
   );

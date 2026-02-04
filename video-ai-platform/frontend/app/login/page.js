@@ -1,137 +1,162 @@
 'use client';
 
-import { useState } from 'react';
-import { signIn } from 'aws-amplify/auth';
-import '../../lib/aws'; // ensures Amplify is configured
+import { useState, useEffect } from 'react';
+import { signIn, getCurrentUser } from 'aws-amplify/auth';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 
-export default function LoginPage() {
+export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [message, setMessage] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [checkingAuth, setCheckingAuth] = useState(true); // ADD THIS
+  const router = useRouter();
 
-  async function handleLogin(e) {
-    e.preventDefault();
-    setIsLoading(true);
-    setMessage('');
+  // ADD THIS useEffect
+  useEffect(() => {
+    checkIfLoggedIn();
+  }, []);
 
+  // ADD THIS function
+  async function checkIfLoggedIn() {
     try {
-      // Since your pool uses email alias, you can sign in directly with email
-      const { isSignedIn, nextStep } = await signIn({
-        username: email,  // Use email directly for sign in
-        password,
-      });
-
-      console.log('Sign in result:', { isSignedIn, nextStep });
-
-      if (isSignedIn) {
-        setMessage('Login successful! Redirecting...');
-        setTimeout(() => {
-          window.location.href = '/dashboard';
-        }, 1500);
-      } else if (nextStep.signInStep === 'CONFIRM_SIGN_UP') {
-        setMessage('Please confirm your email first.');
-        setTimeout(() => {
-          window.location.href = `/confirm?email=${encodeURIComponent(email)}`;
-        }, 2000);
-      } else if (nextStep.signInStep === 'CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED') {
-        setMessage('You need to set a new password.');
-      }
-
-    } catch (err) {
-      console.error('Login error:', err);
-      
-      if (err.name === 'UserNotConfirmedException') {
-        setMessage('Please confirm your email first. Redirecting to confirmation page...');
-        setTimeout(() => {
-          window.location.href = `/confirm?email=${encodeURIComponent(email)}`;
-        }, 2000);
-      } else if (err.name === 'NotAuthorizedException') {
-        setMessage('Incorrect email or password.');
-      } else if (err.name === 'UserNotFoundException') {
-        setMessage('No account found with this email.');
-      } else {
-        setMessage(err.message || 'Login failed');
-      }
-    } finally {
-      setIsLoading(false);
+      await getCurrentUser();
+      console.log('Already logged in, redirecting...');
+      router.replace('/dashboard');
+    } catch (error) {
+      console.log('Not logged in');
+      setCheckingAuth(false);
     }
   }
 
-  return (
-    <main style={{ maxWidth: 420, margin: '40px auto', padding: '20px' }}>
-      <h1>Sign In</h1>
-      <form onSubmit={handleLogin}>
-        <input
-          placeholder="Email"
-          type="email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-          style={{ 
-            display: 'block', 
-            width: '100%', 
-            marginBottom: 12,
-            padding: '8px',
-            fontSize: '14px'
-          }}
-        />
-        <input
-          placeholder="Password"
-          type="password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-          style={{ 
-            display: 'block', 
-            width: '100%', 
-            marginBottom: 12,
-            padding: '8px',
-            fontSize: '14px'
-          }}
-        />
-        <button 
-          type="submit" 
-          disabled={isLoading}
-          style={{
-            padding: '10px 20px',
-            backgroundColor: isLoading ? '#ccc' : '#0070f3',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            width: '100%'
-          }}
-        >
-          {isLoading ? 'Signing in...' : 'Sign in'}
-        </button>
-      </form>
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
 
-      {message && (
-        <div style={{
-          marginTop: '16px',
-          padding: '12px',
-          backgroundColor: message.includes('successful') ? '#d4edda' : '#f8d7da',
-          color: message.includes('successful') ? '#155724' : '#721c24',
-          borderRadius: '4px',
-          fontSize: '14px'
-        }}>
-          {message}
+    try {
+      console.log('Attempting to sign in...');
+      const result = await signIn({ 
+        username: email, 
+        password 
+      });
+      
+      console.log('Sign in result:', result);
+      
+      if (result.isSignedIn) {
+        console.log('Sign in successful, redirecting to dashboard...');
+        router.replace('/dashboard'); // Changed from push to replace
+      } else {
+        console.log('Sign in incomplete:', result);
+        setError('Sign in incomplete. Please try again.');
+      }
+    } catch (err) {
+      console.error('Sign in error:', err);
+      setError(err.message || 'Failed to sign in');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ADD THIS: Show loading while checking
+  if (checkingAuth) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking...</p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      <p style={{ marginTop: '20px', textAlign: 'center', fontSize: '14px' }}>
-        Don't have an account?{' '}
-        <a href="/signup" style={{ color: '#0070f3', textDecoration: 'none' }}>
-          Create one
-        </a>
-      </p>
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8">
+        <div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Sign in to your account
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-600">
+            Or{' '}
+            <Link href="/signup" className="font-medium text-blue-600 hover:text-blue-500">
+              create a new account
+            </Link>
+          </p>
+        </div>
 
-      <p style={{ marginTop: '10px', textAlign: 'center', fontSize: '14px' }}>
-        <a href="/forgot-password" style={{ color: '#0070f3', textDecoration: 'none' }}>
-          Forgot password?
-        </a>
-      </p>
-    </main>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          {error && (
+            <div className="rounded-md bg-red-50 p-4">
+              <div className="text-sm text-red-800">{error}</div>
+            </div>
+          )}
+
+          <div className="rounded-md shadow-sm -space-y-px">
+            <div>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Email address"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                disabled={loading}
+              />
+            </div>
+          </div>
+
+          <div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? (
+                <span className="flex items-center">
+                  <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                  </svg>
+                  Signing in...
+                </span>
+              ) : (
+                'Sign in'
+              )}
+            </button>
+          </div>
+
+          <div className="text-center">
+            <Link href="/" className="text-sm text-blue-600 hover:text-blue-500">
+              Back to home
+            </Link>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
