@@ -167,3 +167,45 @@ export async function deleteVideo(videoId) {
 
   return response.json();
 }
+
+/**
+ * Get presigned URL for video playback
+ * 
+ * Add this to your app/lib/api.js file
+ */
+export async function getVideoUrl(videoId) {
+  try {
+    const session = await fetchAuthSession();
+    const userId = session.tokens?.idToken?.payload?.sub;
+    
+    if (!userId) {
+      throw new Error('User ID not found in session');
+    }
+
+    // IMPORTANT: Use /api/videos/ NOT /api/api/videos/
+    // The API_BASE_URL already includes the /api prefix if needed
+    const url = `${API_BASE_URL}/videos/${videoId}/url?user_id=${userId}`;
+    
+    console.log('Fetching video URL from:', url);
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.tokens.idToken.toString()}`
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Failed to get video URL');
+    }
+
+    const data = await response.json();
+    console.log('✓ Got video URL');
+    return data.video_url;
+  } catch (error) {
+    console.error('Error getting video URL:', error);
+    throw error;
+  }
+}
