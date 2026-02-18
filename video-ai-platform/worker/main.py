@@ -9,7 +9,7 @@ from config import settings
 from sqs_handler import SQSHandler
 from s3_handler import S3Handler
 from db_handler import DBHandler
-from processor import VideoProcessor
+from processor import UltimateVideoProcessor as VideoProcessor
 
 def extract_video_id_from_key(s3_key: str) -> str:
     """

@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     # Processing Configuration
     TEMP_DIR: str = "./temp"
     MAX_VIDEO_SIZE: int = 500000000  # 500 MB
-    PROCESS_EVERY_N_FRAMES: int = 5  # Process every 5th frame
+    PROCESS_EVERY_N_FRAMES: int = 2  # Process every 2nd frame
     
     model_config = ConfigDict(
         env_file=".env",
