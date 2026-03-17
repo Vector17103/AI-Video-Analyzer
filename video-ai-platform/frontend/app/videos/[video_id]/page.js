@@ -1,5 +1,7 @@
 'use client';
 
+import ModelBreakdown from '../../components/ModelBreakdown';
+import VideoNarrative from '../../components/VideoNarrative';
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { getCurrentUser } from 'aws-amplify/auth';
@@ -311,6 +313,12 @@ export default function VideoDetailPage() {
 
         {/* ADD THIS NEW SECTION */}
         <DetectionCharts video={video} />
+
+        {/* AI Video Narrative */}
+        <VideoNarrative videoId={videoId} />
+
+        {/* ADD THIS COMPONENT HERE 👇 */}
+        <ModelBreakdown detections={video.detections} video={video} />
 
         {/* All Detections Card */}
         {video.detections && video.detections.length > 0 && (

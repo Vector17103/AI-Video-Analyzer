@@ -1,8 +1,15 @@
+from dotenv import load_dotenv
+import os
+
+# Load environment variables
+load_dotenv()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes import upload
 from app.routes import detections
 from app.routes import videos  # ADD THIS
+from app.routes import narrative
 
 app = FastAPI(
     title="Video AI Detection API",
@@ -29,6 +36,7 @@ app.add_middleware(
 app.include_router(upload.router, prefix="/api")
 app.include_router(detections.router, prefix="/api")
 app.include_router(videos.router, prefix="/api")  # ADD THIS
+app.include_router(narrative.router, prefix="/api", tags=["narratives"])
 
 @app.get("/")
 async def root():

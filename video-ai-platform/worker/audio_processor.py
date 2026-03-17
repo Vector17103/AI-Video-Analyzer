@@ -102,7 +102,9 @@ class AudioProcessor:
                     'start': round(segment['start'], 2),
                     'end': round(segment['end'], 2),
                     'text': segment['text'].strip(),
-                    'confidence': 1.0 - segment.get('no_speech_prob', 0.0)
+                    'confidence': 1.0 - segment.get('no_speech_prob', 0.0),
+                    'model_source': 'whisper',
+                    'model_type': 'audio_transcription'
                 })
             
             print(f"   ✓ Transcribed {len(segments)} speech segments")
@@ -210,7 +212,9 @@ class AudioProcessor:
                 'event_type': event_type,
                 'confidence': round(confidence, 2),
                 'description': description,
-                'energy': round(float(rms), 3)
+                'energy': round(float(rms), 3),
+                'model_source': 'audio_events',
+                'model_type': 'audio_event_detection'
             }
         
         return None
@@ -279,7 +283,9 @@ class AudioProcessor:
                     'speech': speech_at_time[0]['text'] if speech_at_time else None,
                     'events': [e['description'] for e in events_at_time]
                 },
-                'confirmed_by_audio': confirmed_objects
+                'confirmed_by_audio': confirmed_objects,
+                'model_source': 'audio_visual_fusion',
+                'model_type': 'multimodal_fusion'
             }
             
             fused_timeline.append(timeline_entry)

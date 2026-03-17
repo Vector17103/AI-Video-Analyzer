@@ -300,7 +300,7 @@ class UltimateVideoProcessor:
                 'duration': duration,
                 'frames_processed': processed_count,
                 'processing_mode': processing_mode,
-                'ensemble_models': self._get_ensemble_models() if self.use_ensemble else ['yolo11x'],
+                'ensemble_models': self._get_ensemble_models() if self.use_ensemble else ['yolov11x'],
                 'has_audio': audio_results.get('has_audio', False) if audio_results else False
             },
             'detections': self._merge_all_detections(all_data),
@@ -418,10 +418,21 @@ class UltimateVideoProcessor:
         avg_xyxy = np.mean([b['xyxy'] for b in cluster], axis=0)
         avg_conf = np.mean([b['conf'] for b in cluster])
         
+        # Track which models agreed
+        contributing_models = []
+        if len(cluster) >= 1:
+            contributing_models.append('yolov11x')
+        if len(cluster) >= 2:
+            contributing_models.append('yolov10x')
+        if len(cluster) >= 3:
+            contributing_models.append('yolov9c')
+        
         return {
             'cls': cluster[0]['cls'],
             'conf': float(avg_conf * 1.1),  # Boost confidence (multi-model agreement)
-            'xyxy': avg_xyxy
+            'xyxy': avg_xyxy,
+            'contributing_models': contributing_models,
+            'agreement_count': len(cluster)
         }
     
     def _create_result_object(self, fused_boxes, template_result):
@@ -432,13 +443,13 @@ class UltimateVideoProcessor:
     
     def _get_ensemble_models(self):
         """List of models in ensemble"""
-        models = ['yolo11x', 'yolo10x']
+        models = ['yolov11x', 'yolov10x']
         if self.use_tertiary:
-            models.append('yolo9c')
+            models.append('yolov9c')
         return models
     
     # ==========================================
-    # LAYER 1 & 2 METHODS (same as before)
+    # LAYER 1 & 2 METHODS
     # ==========================================
     
     def _filter_false_positives(self, detections: List[Dict], frame_width: int, frame_height: int) -> List[Dict]:
@@ -500,11 +511,18 @@ class UltimateVideoProcessor:
             'timestamp': timestamp,
             'avg_magnitude': float(np.mean(magnitude)),
             'max_magnitude': float(np.max(magnitude)),
-            'significant_motion': float(np.mean(magnitude)) > 2.0
+            'significant_motion': float(np.mean(magnitude)) > 2.0,
+            'model_source': 'optical_flow',
+            'model_type': 'motion_detection'
         }
     
     def _analyze_scene(self, frame_rgb, timestamp):
-        return {'timestamp': timestamp, 'scene_descriptions': []}
+        return {
+            'timestamp': timestamp,
+            'scene_descriptions': [],
+            'model_source': 'clip',
+            'model_type': 'scene_understanding'
+        }
     
     def _extract_comprehensive_data(self, detection_results, pose_results, 
                                     segment_results, motion_data, scene_data,
@@ -531,8 +549,16 @@ class UltimateVideoProcessor:
                         'y2': float(box.xyxy[0][3])
                     },
                     'track_id': int(box.id[0]) if box.id is not None else None,
-                    'area': float((box.xyxy[0][2] - box.xyxy[0][0]) * (box.xyxy[0][3] - box.xyxy[0][1]))
+                    'area': float((box.xyxy[0][2] - box.xyxy[0][0]) * (box.xyxy[0][3] - box.xyxy[0][1])),
+                    'model_source': 'ensemble' if self.use_ensemble else 'yolov11x',
+                    'model_type': 'object_detection',
+                    'ensemble_models': self._get_ensemble_models() if self.use_ensemble else ['yolov11x']
                 }
+                
+                # Add tracking info if using ByteTrack
+                if detection['track_id'] is not None:
+                    detection['tracking_source'] = 'bytetrack'
+                
                 frame_data['objects'].append(detection)
         
         frame_data['objects'] = self._filter_false_positives(frame_data['objects'], frame_width, frame_height)
@@ -545,13 +571,59 @@ class UltimateVideoProcessor:
                     frame_data['poses'].append({
                         'frame': frame_num,
                         'timestamp': timestamp,
-                        'confidence': float(keypoint.conf.mean())
+                        'confidence': float(keypoint.conf.mean()),
+                        'model_source': 'yolov11x-pose',
+                        'model_type': 'pose_estimation'
                     })
+        
+        # Add segmentation data with model attribution
+        for result in segment_results:
+            if result.masks is None:
+                continue
+            for i in range(len(result.masks)):
+                frame_data['segments'].append({
+                    'frame': frame_num,
+                    'timestamp': timestamp,
+                    'model_source': 'yolov11x-seg',
+                    'model_type': 'instance_segmentation'
+                })
         
         return frame_data
     
     def _merge_all_detections(self, all_data):
         return all_data['objects']
+    
+    def _calculate_model_contributions(self, detections):
+        """Calculate how many detections each model contributed"""
+        contributions = {}
+        
+        for det in detections:
+            model = det.get('model_source', 'unknown')
+            if model not in contributions:
+                contributions[model] = {
+                    'count': 0,
+                    'objects': {},
+                    'avg_confidence': 0.0,
+                    'confidence_sum': 0.0
+                }
+            
+            contributions[model]['count'] += 1
+            contributions[model]['confidence_sum'] += det.get('confidence', 0)
+            
+            cls = det.get('class_name', 'unknown')
+            if cls not in contributions[model]['objects']:
+                contributions[model]['objects'][cls] = 0
+            contributions[model]['objects'][cls] += 1
+        
+        # Calculate averages
+        for model in contributions:
+            if contributions[model]['count'] > 0:
+                contributions[model]['avg_confidence'] = (
+                    contributions[model]['confidence_sum'] / contributions[model]['count']
+                )
+            del contributions[model]['confidence_sum']  # Remove temp field
+        
+        return contributions
     
     def _create_ultimate_summary(self, all_data, fps, duration, audio_results=None):
         objects = all_data['objects']
@@ -576,7 +648,8 @@ class UltimateVideoProcessor:
             'unique_tracked_objects': len(tracked),
             'dominant_objects': [{'type': obj, 'count': cnt} for obj, cnt in dominant],
             'processing_quality': processing_quality,
-            'optimization': 'ensemble_multi_model' if self.use_ensemble else 'single_model'
+            'optimization': 'ensemble_multi_model' if self.use_ensemble else 'single_model',
+            'model_contributions': self._calculate_model_contributions(objects)
         }
         
         if audio_results and audio_results.get('has_audio'):
@@ -591,7 +664,8 @@ class UltimateVideoProcessor:
             return {}
         return {
             'total_frames': len(motion_data),
-            'frames_with_motion': sum(1 for m in motion_data if m.get('significant_motion'))
+            'frames_with_motion': sum(1 for m in motion_data if m.get('significant_motion')),
+            'model_source': 'optical_flow'
         }
     
     def _convert_to_decimal(self, obj):
