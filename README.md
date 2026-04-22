@@ -23,11 +23,11 @@ Upload (Next.js)
 The worker runs a sequential perception stack, fuses results, and generates a narrative.
 
 **Perception**
-- YOLOv8 — object detection with ByteTrack multi-object tracking
-- SAM2 — instance segmentation
 - Mask2Former — panoptic segmentation (every pixel labeled)
 - DepthAnything V2 — monocular depth estimation
-- SigLIP / CLIP — zero-shot scene classification
+- SigLIP — zero-shot scene classification
+- Scene Graph - Spatial Relations
+- ByteTrack - Multi-Object Tracking
 - SlowFast R50 — action recognition (Kinetics-400)
 - Whisper large-v3 (faster-whisper) — speech transcription
 - CLAP (HTS-AT) — audio event classification (28 categories)
